@@ -169,6 +169,27 @@ struct my_con* db_unixodbc_new_connection(struct db_id* id)
 		goto err2;
 	}
 
+	/* Get the current database name from ODBC connection */
+	ptr->database_name = NULL;
+	{
+		SQLCHAR db_name[256];
+		SQLSMALLINT db_name_len = 0;
+		ret = SQLGetConnectAttr(ptr->dbc, SQL_ATTR_CURRENT_CATALOG,
+			db_name, sizeof(db_name), &db_name_len);
+		if (SQL_SUCCEEDED(ret) && db_name_len > 0) {
+			ptr->database_name = (char*)pkg_malloc(db_name_len + 1);
+			if (ptr->database_name) {
+				memcpy(ptr->database_name, db_name, db_name_len);
+				ptr->database_name[db_name_len] = '\0';
+				LM_DBG("database name from ODBC: %s\n", ptr->database_name);
+			} else {
+				LM_WARN("failed to allocate memory for database name\n");
+			}
+		} else {
+			LM_DBG("could not get database name from ODBC connection\n");
+		}
+	}
+
 	ptr->stmt_handle = NULL;
 
 	ptr->timestamp = time(0);
@@ -196,6 +217,7 @@ void db_unixodbc_free_connection(struct my_con* con)
 	SQLFreeHandle(SQL_HANDLE_ENV, con->env);
 	SQLDisconnect(con->dbc);
 	SQLFreeHandle(SQL_HANDLE_DBC, con->dbc);
+	if (con->database_name) pkg_free(con->database_name);
 	pkg_free(con);
 }
 

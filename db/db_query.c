@@ -39,6 +39,53 @@
 static str  sql_str;
 static char sql_buf[SQL_BUF_LEN];
 
+/*
+ * Helper function to print table name with optional database prefix
+ * Returns the length of the printed string, or -1 on error
+ */
+static inline int db_print_table(const db_con_t* _h, char* _b, const int _l)
+{
+	int ret;
+	const str* table;
+	
+	if (!_h || !_b || !_l) {
+		LM_ERR("invalid parameter\n");
+		return -1;
+	}
+	
+	table = CON_TABLE(_h);
+	if (!table || !table->s) {
+		LM_ERR("no table specified\n");
+		return -1;
+	}
+	
+	/* Check if we have a database name prefix to add */
+	/* This is database-specific, so we check the tail structure */
+	/* For ODBC connections, we can access the database name */
+	#ifdef CON_DATABASE
+	{
+		const char* db_name = CON_DATABASE(_h);
+		if (db_name && *db_name) {
+			/* Print as: database.table */
+			ret = snprintf(_b, _l, "%s.%.*s", db_name, table->len, table->s);
+			if (ret < 0 || ret >= _l) {
+				LM_ERR("buffer too small for database.table\n");
+				return -1;
+			}
+			return ret;
+		}
+	}
+	#endif
+	
+	/* No database prefix, just print table name */
+	ret = snprintf(_b, _l, "%.*s", table->len, table->s);
+	if (ret < 0 || ret >= _l) {
+		LM_ERR("buffer too small for table\n");
+		return -1;
+	}
+	return ret;
+}
+
 int db_do_query(const db_con_t* _h, const db_key_t* _k, const db_op_t* _op,
 	const db_val_t* _v, const db_key_t* _c, const int _n, const int _nc,
 	const db_key_t _o, db_res_t** _r, int (*val2str) (const db_con_t*,
@@ -53,9 +100,17 @@ int db_do_query(const db_con_t* _h, const db_key_t* _k, const db_op_t* _op,
 	}
 
 	if (!_c) {
-		ret = snprintf(sql_buf, SQL_BUF_LEN, "select * from %.*s ", CON_TABLE(_h)->len, CON_TABLE(_h)->s);
+		ret = snprintf(sql_buf, SQL_BUF_LEN, "select * from ");
 		if (ret < 0 || ret >= SQL_BUF_LEN) goto error;
 		off = ret;
+		
+		ret = db_print_table(_h, sql_buf + off, SQL_BUF_LEN - off);
+		if (ret < 0) goto err_exit;
+		off += ret;
+		
+		ret = snprintf(sql_buf + off, SQL_BUF_LEN - off, " ");
+		if (ret < 0 || ret >= (SQL_BUF_LEN - off)) goto error;
+		off += ret;
 	} else {
 		ret = snprintf(sql_buf, SQL_BUF_LEN, "select ");
 		if (ret < 0 || ret >= SQL_BUF_LEN) goto error;
@@ -65,7 +120,15 @@ int db_do_query(const db_con_t* _h, const db_key_t* _k, const db_op_t* _op,
 		if (ret < 0) goto err_exit;
 		off += ret;
 
-		ret = snprintf(sql_buf + off, SQL_BUF_LEN - off, "from %.*s ", CON_TABLE(_h)->len, CON_TABLE(_h)->s);
+		ret = snprintf(sql_buf + off, SQL_BUF_LEN - off, "from ");
+		if (ret < 0 || ret >= (SQL_BUF_LEN - off)) goto error;
+		off += ret;
+		
+		ret = db_print_table(_h, sql_buf + off, SQL_BUF_LEN - off);
+		if (ret < 0) goto err_exit;
+		off += ret;
+		
+		ret = snprintf(sql_buf + off, SQL_BUF_LEN - off, " ");
 		if (ret < 0 || ret >= (SQL_BUF_LEN - off)) goto error;
 		off += ret;
 	}
@@ -209,9 +272,17 @@ int db_do_insert(const db_con_t* _h, const db_key_t* _k, const db_val_t* _v,
 	}
 
 build_query:
-	ret = snprintf(sql_buf, SQL_BUF_LEN, "insert into %.*s (", CON_TABLE(_h)->len, CON_TABLE(_h)->s);
+	ret = snprintf(sql_buf, SQL_BUF_LEN, "insert into ");
 	if (ret < 0 || ret >= SQL_BUF_LEN) goto error;
 	off = ret;
+	
+	ret = db_print_table(_h, sql_buf + off, SQL_BUF_LEN - off);
+	if (ret < 0) goto error;
+	off += ret;
+	
+	ret = snprintf(sql_buf + off, SQL_BUF_LEN - off, " (");
+	if (ret < 0 || ret >= (SQL_BUF_LEN - off)) goto error;
+	off += ret;
 
 	ret = db_print_columns(sql_buf + off, SQL_BUF_LEN - off, _k, _n);
 	if (ret < 0) goto error;
@@ -311,9 +382,13 @@ int db_do_delete(const db_con_t* _h, const db_key_t* _k, const db_op_t* _o,
 		goto err_exit;
 	}
 
-	ret = snprintf(sql_buf, SQL_BUF_LEN, "delete from %.*s", CON_TABLE(_h)->len, CON_TABLE(_h)->s);
+	ret = snprintf(sql_buf, SQL_BUF_LEN, "delete from ");
 	if (ret < 0 || ret >= SQL_BUF_LEN) goto error;
 	off = ret;
+	
+	ret = db_print_table(_h, sql_buf + off, SQL_BUF_LEN - off);
+	if (ret < 0) goto err_exit;
+	off += ret;
 
 	if (_n) {
 		ret = snprintf(sql_buf + off, SQL_BUF_LEN - off, " where ");
@@ -360,9 +435,17 @@ int db_do_update(const db_con_t* _h, const db_key_t* _k, const db_op_t* _o,
 		goto err_exit;
 	}
 
-	ret = snprintf(sql_buf, SQL_BUF_LEN, "update %.*s set ", CON_TABLE(_h)->len, CON_TABLE(_h)->s);
+	ret = snprintf(sql_buf, SQL_BUF_LEN, "update ");
 	if (ret < 0 || ret >= SQL_BUF_LEN) goto error;
 	off = ret;
+	
+	ret = db_print_table(_h, sql_buf + off, SQL_BUF_LEN - off);
+	if (ret < 0) goto err_exit;
+	off += ret;
+	
+	ret = snprintf(sql_buf + off, SQL_BUF_LEN - off, " set ");
+	if (ret < 0 || ret >= (SQL_BUF_LEN - off)) goto error;
+	off += ret;
 
 	ret = db_print_set(_h, sql_buf + off, SQL_BUF_LEN - off, _uk, _uv, _un, val2str);
 	if (ret < 0) goto err_exit;
@@ -411,10 +494,17 @@ int db_do_replace(const db_con_t* _h, const db_key_t* _k, const db_val_t* _v,
 		return -1;
 	}
 
-	ret = snprintf(sql_buf, SQL_BUF_LEN, "replace into %.*s (",
-		CON_TABLE(_h)->len, CON_TABLE(_h)->s);
+	ret = snprintf(sql_buf, SQL_BUF_LEN, "replace into ");
 	if (ret < 0 || ret >= SQL_BUF_LEN) goto error;
 	off = ret;
+	
+	ret = db_print_table(_h, sql_buf + off, SQL_BUF_LEN - off);
+	if (ret < 0) return -1;
+	off += ret;
+	
+	ret = snprintf(sql_buf + off, SQL_BUF_LEN - off, " (");
+	if (ret < 0 || ret >= (SQL_BUF_LEN - off)) goto error;
+	off += ret;
 
 	ret = db_print_columns(sql_buf + off, SQL_BUF_LEN - off, _k, _n);
 	if (ret < 0) return -1;
