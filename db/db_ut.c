@@ -254,6 +254,7 @@ inline int db_time2str(time_t _v, char* _s, int* _l)
 
 /*
  * Print list of columns separated by comma
+ * All column names are quoted with double quotes
  */
 inline int db_print_columns(char* _b, const int _l, const db_key_t* _c, const int _n)
 {
@@ -266,11 +267,11 @@ inline int db_print_columns(char* _b, const int _l, const db_key_t* _c, const in
 
 	for(i = 0; i < _n; i++)	{
 		if (i == (_n - 1)) {
-			ret = snprintf(_b + len, _l - len, "%.*s ", _c[i]->len, _c[i]->s);
+			ret = snprintf(_b + len, _l - len, "\"%.*s\" ", _c[i]->len, _c[i]->s);
 			if (ret < 0 || ret >= (_l - len)) goto error;
 			len += ret;
 		} else {
-			ret = snprintf(_b + len, _l - len, "%.*s,", _c[i]->len, _c[i]->s);
+			ret = snprintf(_b + len, _l - len, "\"%.*s\",", _c[i]->len, _c[i]->s);
 			if (ret < 0 || ret >= (_l - len)) goto error;
 			len += ret;
 		}
@@ -318,6 +319,7 @@ int db_print_values(const db_con_t* _c, char* _b, const int _l, const db_val_t* 
 
 /*
  * Print where clause of SQL statement
+ * All column names are quoted with double quotes
  */
 int db_print_where(const db_con_t* _c, char* _b, const int _l, const db_key_t* _k,
 	const db_op_t* _o, const db_val_t* _v, const int _n, int (*val2str)
@@ -332,12 +334,12 @@ int db_print_where(const db_con_t* _c, char* _b, const int _l, const db_key_t* _
 
 	for(i = 0; i < _n; i++) {
 		if (_o) {
-			ret = snprintf(_b + len, _l - len, "%.*s%s",
+			ret = snprintf(_b + len, _l - len, "\"%.*s\"%s",
 				_k[i]->len, _k[i]->s, _o[i]);
 			if (ret < 0 || ret >= (_l - len)) goto error;
 			len += ret;
 		} else {
-			ret = snprintf(_b + len, _l - len, "%.*s=", _k[i]->len, _k[i]->s);
+			ret = snprintf(_b + len, _l - len, "\"%.*s\"=", _k[i]->len, _k[i]->s);
 			if (ret < 0 || ret >= (_l - len)) goto error;
 			len += ret;
 		}
@@ -370,6 +372,7 @@ int db_print_where(const db_con_t* _c, char* _b, const int _l, const db_key_t* _
 
 /*
  * Print set clause of update SQL statement
+ * All column names are quoted with double quotes
  */
 int db_print_set(const db_con_t* _c, char* _b, const int _l, const db_key_t* _k,
 	const db_val_t* _v, const int _n, int (*val2str)(const db_con_t*,
@@ -383,7 +386,7 @@ int db_print_set(const db_con_t* _c, char* _b, const int _l, const db_key_t* _k,
 	}
 
 	for(i = 0; i < _n; i++) {
-		ret = snprintf(_b + len, _l - len, "%.*s=", _k[i]->len, _k[i]->s);
+		ret = snprintf(_b + len, _l - len, "\"%.*s\"=", _k[i]->len, _k[i]->s);
 		if (ret < 0 || ret >= (_l - len)) goto error;
 		len += ret;
 

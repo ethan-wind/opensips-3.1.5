@@ -41,6 +41,7 @@ static char sql_buf[SQL_BUF_LEN];
 
 /*
  * Helper function to print table name with optional database prefix
+ * All identifiers are quoted with double quotes
  * Returns the length of the printed string, or -1 on error
  */
 static inline int db_print_table(const db_con_t* _h, char* _b, const int _l)
@@ -66,10 +67,10 @@ static inline int db_print_table(const db_con_t* _h, char* _b, const int _l)
 	{
 		const char* db_name = CON_DATABASE(_h);
 		if (db_name && *db_name) {
-			/* Print as: database.table */
-			ret = snprintf(_b, _l, "%s.%.*s", db_name, table->len, table->s);
+			/* Print as: "database"."table" */
+			ret = snprintf(_b, _l, "\"%s\".\"%.*s\"", db_name, table->len, table->s);
 			if (ret < 0 || ret >= _l) {
-				LM_ERR("buffer too small for database.table\n");
+				LM_ERR("buffer too small for \"database\".\"table\"\n");
 				return -1;
 			}
 			return ret;
@@ -77,8 +78,8 @@ static inline int db_print_table(const db_con_t* _h, char* _b, const int _l)
 	}
 	#endif
 	
-	/* No database prefix, just print table name */
-	ret = snprintf(_b, _l, "%.*s", table->len, table->s);
+	/* No database prefix, just print quoted table name */
+	ret = snprintf(_b, _l, "\"%.*s\"", table->len, table->s);
 	if (ret < 0 || ret >= _l) {
 		LM_ERR("buffer too small for table\n");
 		return -1;
@@ -143,7 +144,7 @@ int db_do_query(const db_con_t* _h, const db_key_t* _k, const db_op_t* _op,
 		off += ret;
 	}
 	if (_o) {
-		ret = snprintf(sql_buf + off, SQL_BUF_LEN - off, " order by %.*s", _o->len, _o->s);
+		ret = snprintf(sql_buf + off, SQL_BUF_LEN - off, " order by \"%.*s\"", _o->len, _o->s);
 		if (ret < 0 || ret >= (SQL_BUF_LEN - off)) goto error;
 		off += ret;
 	}
