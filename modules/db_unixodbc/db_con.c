@@ -174,9 +174,14 @@ struct my_con* db_unixodbc_new_connection(struct db_id* id)
 	{
 		SQLCHAR db_name[256];
 		SQLSMALLINT db_name_len = 0;
+		SQLLEN actual_len = 0;
+		
 		ret = SQLGetConnectAttr(ptr->dbc, SQL_ATTR_CURRENT_CATALOG,
-			db_name, sizeof(db_name), &db_name_len);
-		if (SQL_SUCCEEDED(ret) && db_name_len > 0) {
+			db_name, sizeof(db_name), &actual_len);
+		
+		if (SQL_SUCCEEDED(ret) && actual_len > 0) {
+			/* actual_len contains the actual string length */
+			db_name_len = (SQLSMALLINT)actual_len;
 			ptr->database_name = (char*)pkg_malloc(db_name_len + 1);
 			if (ptr->database_name) {
 				memcpy(ptr->database_name, db_name, db_name_len);
@@ -186,7 +191,23 @@ struct my_con* db_unixodbc_new_connection(struct db_id* id)
 				LM_WARN("failed to allocate memory for database name\n");
 			}
 		} else {
-			LM_DBG("could not get database name from ODBC connection\n");
+			/* Fallback: try to get database name from connection string (DSN Database parameter) */
+			LM_DBG("could not get database name from SQL_ATTR_CURRENT_CATALOG, trying DSN Database parameter\n");
+			
+			/* Try to get the database name using SQLGetInfo with SQL_DATABASE_NAME */
+			ret = SQLGetInfo(ptr->dbc, SQL_DATABASE_NAME, db_name, sizeof(db_name), &db_name_len);
+			if (SQL_SUCCEEDED(ret) && db_name_len > 0) {
+				ptr->database_name = (char*)pkg_malloc(db_name_len + 1);
+				if (ptr->database_name) {
+					memcpy(ptr->database_name, db_name, db_name_len);
+					ptr->database_name[db_name_len] = '\0';
+					LM_DBG("database name from SQLGetInfo: %s\n", ptr->database_name);
+				} else {
+					LM_WARN("failed to allocate memory for database name\n");
+				}
+			} else {
+				LM_DBG("could not get database name from ODBC connection, schema prefix will not be used\n");
+			}
 		}
 	}
 
