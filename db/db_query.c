@@ -60,23 +60,17 @@ static inline int db_print_table(const db_con_t* _h, char* _b, const int _l)
 		return -1;
 	}
 	
-	/* Check if we have a database name prefix to add */
-	/* This is database-specific, so we check the tail structure */
-	/* For ODBC connections, we can access the database name */
-	#ifdef CON_DATABASE
-	{
-		const char* db_name = CON_DATABASE(_h);
-		if (db_name && *db_name) {
-			/* Print as: "database"."table" */
-			ret = snprintf(_b, _l, "\"%s\".\"%.*s\"", db_name, table->len, table->s);
-			if (ret < 0 || ret >= _l) {
-				LM_ERR("buffer too small for \"database\".\"table\"\n");
-				return -1;
-			}
-			return ret;
+	/* Check if we have a database name (schema) prefix to add */
+	if (CON_SCHEMA(_h) && *(CON_SCHEMA(_h))) {
+		/* Print as: "database"."table" */
+		ret = snprintf(_b, _l, "\"%s\".\"%.*s\"", CON_SCHEMA(_h), table->len, table->s);
+		if (ret < 0 || ret >= _l) {
+			LM_ERR("buffer too small for \"database\".\"table\"\n");
+			return -1;
 		}
+		LM_DBG("using schema prefix: %s\n", CON_SCHEMA(_h));
+		return ret;
 	}
-	#endif
 	
 	/* No database prefix, just print quoted table name */
 	ret = snprintf(_b, _l, "\"%.*s\"", table->len, table->s);

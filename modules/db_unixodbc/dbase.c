@@ -168,7 +168,16 @@ static int db_unixodbc_submit_query(const db_con_t* _h, const str* _s)
  */
 db_con_t* db_unixodbc_init(const str* _url)
 {
-	return db_do_init(_url, (void*)db_unixodbc_new_connection);
+	db_con_t* con = db_do_init(_url, (void*)db_unixodbc_new_connection);
+	if (con && CON_CONNECTION(con)) {
+		/* Get the database name and set it in the connection structure */
+		struct my_con* mycon = (struct my_con*)con->tail;
+		if (mycon && mycon->database_name) {
+			con->schema = mycon->database_name;
+			LM_DBG("set schema to: %s\n", con->schema);
+		}
+	}
+	return con;
 }
 
 /*

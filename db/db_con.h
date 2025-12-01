@@ -42,12 +42,15 @@ typedef struct {
 	unsigned long tail;   /**< Hook to implementation-specific database state */
 	str url;              /**< URL that this connection is bound on */
 	int flags;
+	char* schema;         /**< Database schema/catalog name (optional) */
 } db_con_t;
 
 /** Return the table of the connection handle */
 #define CON_TABLE(cn)      ((cn)->table)
 /** Return the tail of the connection handle */
 #define CON_TAIL(cn)       ((cn)->tail)
+/** Return the schema of the connection handle */
+#define CON_SCHEMA(cn)     ((cn)->schema)
 
 #define CON_INSTANT_FLUSH			(1<<0)
 #define CON_OR_OPERATOR				(1<<1)
